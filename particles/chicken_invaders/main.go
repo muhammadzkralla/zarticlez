@@ -2,11 +2,10 @@ package main
 
 import (
 	"fmt"
-	"log"
-	"sync"
+	"os"
 	"time"
 
-	"github.com/nsf/termbox-go"
+	"golang.org/x/term"
 )
 
 const (
@@ -15,23 +14,35 @@ const (
 )
 
 var jett Jett
-var inputState InputState
 var screen [][]rune
-var mu sync.Mutex
 
 type Jett struct {
-	x, y int
+	x, y float32
 	char rune
 }
 
-type InputState struct {
-	up    bool
-	down  bool
-	left  bool
-	right bool
 }
 
-func createJett() Jett {
+}
+
+
+func (j *Jett) goRight() {
+	j.x += 1
+}
+
+func (j *Jett) goLeft() {
+	j.x -= 1
+}
+
+func (j *Jett) goUp() {
+	j.y -= 1
+}
+
+func (j *Jett) goDown() {
+	j.y += 1
+}
+
+func CreateJett() Jett {
 	return Jett{
 		x:    w / 2,
 		y:    h - 2,
@@ -39,32 +50,9 @@ func createJett() Jett {
 	}
 }
 
-func (j *Jett) updateJettPosition() {
-	mu.Lock()
-
-	dx, dy := 0, 0
-
-	if inputState.up && !inputState.down {
-		dy = -1
-	} else if inputState.down && !inputState.up {
-		dy = 1
-	}
-
-	if inputState.left && !inputState.right {
-		dx = -1
-	} else if inputState.right && !inputState.left {
-		dx = 1
-	}
-
-	if j.x+dx >= 0 && j.y+dy >= 0 && j.x+dx < w && j.y+dy < h {
-		j.x += dx
-		j.y += dy
-	}
-
-	mu.Unlock()
 }
 
-func clearScreen() {
+func ClearScreen() {
 	screen = make([][]rune, h)
 	for i := range screen {
 		screen[i] = make([]rune, w)
@@ -85,95 +73,74 @@ func clearScreen() {
 	screen[h-1][w-1] = '┘'
 }
 
-func updateJett() {
-	screen[jett.y][jett.x] = jett.char
-}
+func UpdateScreen() {
+	if int(jett.x) >= 1 && int(jett.x) <= w-1 && int(jett.y) >= 1 && int(jett.y) <= h-1 {
+		screen[int(jett.y)][int(jett.x)] = jett.char
+	}
 
-func render(wg *sync.WaitGroup) {
-	defer wg.Done()
-
-	for {
-		mu.Lock()
-
-		clearScreen()
-		updateJett()
-
-		mu.Unlock()
-
-		fmt.Print("\033[H\033[2J")
-
-		for _, row := range screen {
-			fmt.Println(string(row))
 		}
 
-		time.Sleep(100 * time.Millisecond)
 	}
 }
 
-func handleInput(wg *sync.WaitGroup) {
-	defer wg.Done()
-
+func handleInput(stop chan struct{}) {
+	buf := make([]byte, 3)
 	for {
-
-		ev := termbox.PollEvent()
-		if ev.Type != termbox.EventKey {
-			continue
-		}
-
-		mu.Lock()
-
-		switch ev.Key {
-		case termbox.KeyArrowUp:
-			inputState.up = (ev.Type == termbox.EventKey && ev.Key == termbox.KeyArrowUp)
-		case termbox.KeyArrowDown:
-			inputState.down = (ev.Type == termbox.EventKey && ev.Key == termbox.KeyArrowDown)
-		case termbox.KeyArrowLeft:
-			inputState.left = (ev.Type == termbox.EventKey && ev.Key == termbox.KeyArrowLeft)
-		case termbox.KeyArrowRight:
-			inputState.right = (ev.Type == termbox.EventKey && ev.Key == termbox.KeyArrowRight)
-		case termbox.KeyEsc:
-			mu.Unlock()
-			log.Fatal("Quitting..")
+		n, err := os.Stdin.Read(buf)
+		if err != nil || n == 0 {
 			return
 		}
+		if buf[0] == 27 && buf[1] == '[' && n >= 3 {
+			switch buf[2] {
+			case 'A':
+				jett.goUp()
+			case 'B':
+				jett.goDown()
+			case 'C':
+				jett.goRight()
+			case 'D':
+				jett.goLeft()
+			}
+		} else if buf[0] == 'q' || buf[0] == 27 {
+			close(stop)
+			return
+		}
+	}
+}
 
-		if ev.Key == termbox.KeyArrowUp && ev.Ch == 0 {
-			inputState.up = false
-		}
-		if ev.Key == termbox.KeyArrowDown && ev.Ch == 0 {
-			inputState.down = false
-		}
-		if ev.Key == termbox.KeyArrowLeft && ev.Ch == 0 {
-			inputState.left = false
-		}
-		if ev.Key == termbox.KeyArrowRight && ev.Ch == 0 {
-			inputState.right = false
+func Render(stop chan struct{}) {
+	for {
+		select {
+		case <-stop:
+			return
+		default:
 		}
 
-		mu.Unlock()
+		ClearScreen()
+		UpdateScreen()
 
-		jett.updateJettPosition()
+		fmt.Print("\033[H\033[2J")
+		for _, row := range screen {
+			fmt.Print(string(row) + "\r\n")
+		}
+
+		time.Sleep(120 * time.Millisecond)
 	}
 }
 
 func main() {
-	var wg sync.WaitGroup
-	wg.Add(2)
 
-	// Initialize termbox
-	err := termbox.Init()
+	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {
 		panic(err)
 	}
-	defer termbox.Close()
+	defer term.Restore(int(os.Stdin.Fd()), oldState)
 
-	// Set input mode to receive keyboard input
-	termbox.SetInputMode(termbox.InputEsc)
+	jett = CreateJett()
 
-	jett = createJett()
+	stop := make(chan struct{})
+	go handleInput(stop)
+	Render(stop)
 
-	go render(&wg)
-	go handleInput(&wg)
-
-	wg.Wait()
+	fmt.Print("\033[H\033[2J\033[?25h")
 }
