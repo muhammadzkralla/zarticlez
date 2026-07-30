@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
 	"time"
 
@@ -9,13 +10,14 @@ import (
 )
 
 const (
-	w = 70
-	h = 40
+	w = 25
+	h = 15
 )
 
 var jett Jett
 var screen [][]rune
 var bullets []*Bullet
+var chickens []*Chicken
 
 type Jett struct {
 	x, y float32
@@ -25,6 +27,15 @@ type Jett struct {
 type Bullet struct {
 	x, y float32
 	char rune
+}
+
+type Chicken struct {
+	x, y float32
+	char rune
+}
+
+func (c *Chicken) goDown() {
+	c.y += 0.5
 }
 
 func (b *Bullet) goUp() {
@@ -68,6 +79,24 @@ func CreateBullet(x, y float32) *Bullet {
 	}
 }
 
+func CreateChicken(x, y float32) *Chicken {
+	return &Chicken{
+		x:    x,
+		y:    y,
+		char: 'A',
+	}
+}
+
+func launchChickens() {
+	for {
+		idx := rand.Intn(w)
+		chicken := CreateChicken(float32(idx), 1)
+		chickens = append(chickens, chicken)
+
+		time.Sleep(1 * time.Second)
+	}
+}
+
 func ClearScreen() {
 	screen = make([][]rune, h)
 	for i := range screen {
@@ -98,6 +127,13 @@ func UpdateScreen() {
 		if int(bullet.x) >= 1 && int(bullet.x) <= w-1 && int(bullet.y) >= 1 && int(bullet.y) <= h-1 {
 			screen[int(bullet.y)][int(bullet.x)] = bullet.char
 			bullet.goUp()
+		}
+	}
+
+	for _, chicken := range chickens {
+		if int(chicken.x) >= 1 && int(chicken.x) <= w-1 && int(chicken.y) >= 1 && int(chicken.y) <= h-1 {
+			screen[int(chicken.y)][int(chicken.x)] = chicken.char
+			chicken.goDown()
 		}
 	}
 }
@@ -158,6 +194,7 @@ func main() {
 	defer term.Restore(int(os.Stdin.Fd()), oldState)
 
 	jett = CreateJett()
+	go launchChickens()
 
 	stop := make(chan struct{})
 	go handleInput(stop)
