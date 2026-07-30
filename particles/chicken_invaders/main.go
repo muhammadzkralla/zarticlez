@@ -15,16 +15,26 @@ const (
 
 var jett Jett
 var screen [][]rune
+var bullets []*Bullet
 
 type Jett struct {
 	x, y float32
 	char rune
 }
 
+type Bullet struct {
+	x, y float32
+	char rune
 }
 
+func (b *Bullet) goUp() {
+	b.y -= 1
 }
 
+func (j *Jett) emitBullet() {
+	bullet := CreateBullet(j.x, j.y-1)
+	bullets = append(bullets, bullet)
+}
 
 func (j *Jett) goRight() {
 	j.x += 1
@@ -50,6 +60,12 @@ func CreateJett() Jett {
 	}
 }
 
+func CreateBullet(x, y float32) *Bullet {
+	return &Bullet{
+		x:    x,
+		y:    y,
+		char: '|',
+	}
 }
 
 func ClearScreen() {
@@ -78,8 +94,11 @@ func UpdateScreen() {
 		screen[int(jett.y)][int(jett.x)] = jett.char
 	}
 
+	for _, bullet := range bullets {
+		if int(bullet.x) >= 1 && int(bullet.x) <= w-1 && int(bullet.y) >= 1 && int(bullet.y) <= h-1 {
+			screen[int(bullet.y)][int(bullet.x)] = bullet.char
+			bullet.goUp()
 		}
-
 	}
 }
 
@@ -101,6 +120,8 @@ func handleInput(stop chan struct{}) {
 			case 'D':
 				jett.goLeft()
 			}
+		} else if buf[0] == 32 {
+			jett.emitBullet()
 		} else if buf[0] == 'q' || buf[0] == 27 {
 			close(stop)
 			return
