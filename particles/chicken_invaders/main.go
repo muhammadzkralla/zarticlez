@@ -123,6 +123,35 @@ func UpdateScreen() {
 		screen[int(jett.y)][int(jett.x)] = jett.char
 	}
 
+	bulletHits := make(map[int]bool)
+	chickenHits := make(map[int]bool)
+
+	for i, bullet := range bullets {
+		for j, chicken := range chickens {
+			if int(bullet.x) == int(chicken.x) && int(bullet.y) == int(chicken.y) {
+				bulletHits[i] = true
+				chickenHits[j] = true
+				break
+			}
+		}
+	}
+
+	var newBullets []*Bullet
+	for i, bullet := range bullets {
+		if !bulletHits[i] {
+			newBullets = append(newBullets, bullet)
+		}
+	}
+	bullets = newBullets
+
+	var newChickens []*Chicken
+	for i, chicken := range chickens {
+		if !chickenHits[i] {
+			newChickens = append(newChickens, chicken)
+		}
+	}
+	chickens = newChickens
+
 	for _, bullet := range bullets {
 		if int(bullet.x) >= 1 && int(bullet.x) <= w-1 && int(bullet.y) >= 1 && int(bullet.y) <= h-1 {
 			screen[int(bullet.y)][int(bullet.x)] = bullet.char
