@@ -118,9 +118,15 @@ func ClearScreen() {
 	screen[h-1][w-1] = '┘'
 }
 
-func UpdateScreen() {
+func UpdateScreen(stop chan struct{}) {
 	if int(jett.x) >= 1 && int(jett.x) <= w-1 && int(jett.y) >= 1 && int(jett.y) <= h-1 {
 		screen[int(jett.y)][int(jett.x)] = jett.char
+	}
+
+	for _, chicken := range chickens {
+		if int(chicken.x) == int(jett.x) && int(chicken.y) == int(jett.y) {
+			close(stop)
+		}
 	}
 
 	bulletHits := make(map[int]bool)
@@ -203,7 +209,7 @@ func Render(stop chan struct{}) {
 		}
 
 		ClearScreen()
-		UpdateScreen()
+		UpdateScreen(stop)
 
 		fmt.Print("\033[H\033[2J")
 		for _, row := range screen {
