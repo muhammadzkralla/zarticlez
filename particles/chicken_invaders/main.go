@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"sync"
 	"time"
 
 	"golang.org/x/term"
@@ -14,6 +15,7 @@ const (
 	h = 15
 )
 
+var mu sync.Mutex
 var jett Jett
 var screen [][]rune
 var bullets []*Bullet
@@ -91,7 +93,9 @@ func launchChickens() {
 	for {
 		idx := rand.Intn(w)
 		chicken := CreateChicken(float32(idx), 1)
+		mu.Lock()
 		chickens = append(chickens, chicken)
+		mu.Unlock()
 
 		time.Sleep(1 * time.Second)
 	}
@@ -119,6 +123,9 @@ func ClearScreen() {
 }
 
 func UpdateScreen(stop chan struct{}) {
+	mu.Lock()
+	defer mu.Unlock()
+
 	if int(jett.x) >= 1 && int(jett.x) <= w-1 && int(jett.y) >= 1 && int(jett.y) <= h-1 {
 		screen[int(jett.y)][int(jett.x)] = jett.char
 	}
@@ -134,7 +141,7 @@ func UpdateScreen(stop chan struct{}) {
 
 	for i, bullet := range bullets {
 		for j, chicken := range chickens {
-			if int(bullet.x) == int(chicken.x) && int(bullet.y) == int(chicken.y) {
+			if int(bullet.x) == int(chicken.x) && int(bullet.y) <= int(chicken.y) {
 				bulletHits[i] = true
 				chickenHits[j] = true
 				break
@@ -183,16 +190,27 @@ func handleInput(stop chan struct{}) {
 		if buf[0] == 27 && buf[1] == '[' && n >= 3 {
 			switch buf[2] {
 			case 'A':
+				mu.Lock()
 				jett.goUp()
+				mu.Unlock()
 			case 'B':
+				mu.Lock()
 				jett.goDown()
+				mu.Unlock()
 			case 'C':
+				mu.Lock()
 				jett.goRight()
+				mu.Unlock()
 			case 'D':
+
+				mu.Lock()
 				jett.goLeft()
+				mu.Unlock()
 			}
 		} else if buf[0] == 32 {
+			mu.Lock()
 			jett.emitBullet()
+			mu.Unlock()
 		} else if buf[0] == 'q' || buf[0] == 27 {
 			close(stop)
 			return
