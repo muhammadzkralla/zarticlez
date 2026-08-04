@@ -2,12 +2,11 @@ package main
 
 import (
 	"fmt"
+	"golang.org/x/term"
 	"math/rand"
 	"os"
 	"sync"
 	"time"
-
-	"golang.org/x/term"
 )
 
 const (
@@ -20,6 +19,7 @@ var jett Jett
 var screen [][]rune
 var bullets []*Bullet
 var chickens []*Chicken
+var score int32 = 0
 
 type Jett struct {
 	x, y float32
@@ -171,6 +171,7 @@ func checkColiisions(bulletHits, chickenHits map[int]bool) {
 			if int(bullet.x) == int(chicken.x) && int(bullet.y) <= int(chicken.y) {
 				bulletHits[i] = true
 				chickenHits[j] = true
+				score += 1
 				break
 			}
 		}
@@ -254,6 +255,7 @@ func Render(stop chan struct{}) {
 		for _, row := range screen {
 			fmt.Print(string(row) + "\r\n")
 		}
+		fmt.Println(score)
 
 		time.Sleep(120 * time.Millisecond)
 	}
